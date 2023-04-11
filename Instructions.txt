@@ -1,0 +1,180 @@
+#https://codelabs.developers.google.com/codelabs/cloud-spring-cloud-gcp-secret-manager#3
+#https://nunie123.github.io/de-gcp-book/ch_09_secrets/
+
+### Maven POM
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.7.0</version>
+    <relativePath/> <!-- lookup parent from repository -->
+  </parent>
+
+  <modelVersion>4.0.0</modelVersion>
+  <artifactId>spring-cloud-gcp-secretmanager-sample</artifactId>
+  <name>Spring Cloud GCP Secret Manager Sample</name>
+  <description>Spring Cloud GCP Secret Manager Sample</description>
+  <packaging>war</packaging>
+  <properties>
+    <java.version>11</java.version>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-thymeleaf</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>com.google.cloud</groupId>
+      <artifactId>spring-cloud-gcp-starter-secretmanager</artifactId>
+      <version>3.3.0</version>
+    </dependency>
+
+    <!-- Test-related dependencies. -->
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+ </project>
+
+➜  jenv local 11.0.8
+➜  mvn -DskipTests spring-boot:run
+
+org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'secretManagerWebController': Injection of autowired dependencies failed; nested exception is com.google.api.gax.rpc.NotFoundException: io.grpc.StatusRuntimeException: NOT_FOUND: Secret [projects/403157937476/secrets/application-secret] not found or has no versions.
+
+### Creating Secret from STDIN
+➜  spring-cloud-gcp echo -n "Hello" | \
+ gcloud secrets create application-secret \
+ --data-file=- --replication-policy=automatic
+Created version [1] of the secret [application-secret].
+
+
+➜  gcloud secrets list --filter application-secret
+NAME                CREATED              REPLICATION_POLICY  LOCATIONS
+application-secret  2022-06-14T10:17:19  automatic           -
+
+➜  cloud secrets describe application-secret
+createTime: '2022-06-14T10:17:19.423681Z'
+etag: '"15e165b5aba0c1"'
+name: projects/403157937476/secrets/application-secret
+replication:
+  automatic: {}
+
+### Creating Secret from file
+➜  cat my-password.txt
+Binu123
+➜  gcloud secrets create source-api-password-2 --data-file=my-password.txt
+Created version [1] of the secret [source-api-password-2].
+➜  gcloud secrets list --filter source-api-password-2
+NAME                   CREATED              REPLICATION_POLICY  LOCATIONS
+source-api-password-2  2022-06-14T10:33:29  automatic           -
+
+### Accessing secret from command line
+➜  gcloud secrets versions access latest --secret=source-api-password-2
+Binu123%
+
+
+### Accessing secret in code with sm:
+ // Application secrets can be accessed using @Value and using the "sm://" syntax.
+    @Value("${sm://application-secret}")
+    private String appSecret;
+    @Value("${sm://source-api-password-2}")
+    private String sourceApiPassword2;
+
+### Accessing secret from application.properties ( different versions of the secret can also be accessed )
+my-app-secret-1=${sm://application-secret/latest}
+my-app-secret-2=${sm://application-secret/1}
+
+### Open Browser and test. The value configured on secret manager shows up on UI.
+http://localhost:8080/
+Secret Manager Property Source
+At the bootstrap phase, we loaded the following secret into the application context:
+
+application-secret: Hello
+my-application-secret: Hello
+
+### application.properties entry for secrets ( which is an alternative to sm:// method)
+
+my-app-secret-1=${sm://application-secret/latest}
+my-app-secret-2=${sm://application-secret/1}
+
+### Try to overwrite the secret create result in error
+  ~ echo -n "Hola" | \
+ gcloud secrets create application-secret \
+ --data-file=- --replication-policy=automatic
+ERROR: (gcloud.secrets.create) Resource in projects [acn-highmark-health-odh] is the subject of a conflict: Secret [projects/403157937476/secrets/application-secret] already exists.
+
+➜  echo -n "Hola" | \
+ gcloud secrets versions add application-secret \
+ --data-file=-
+Created version [2] of the secret [application-secret].
+
+➜  spring-cloud-gcp gcloud secrets versions list application-secret
+NAME  STATE    CREATED              DESTROYED
+2     enabled  2022-06-14T10:51:04  -
+1     enabled  2022-06-14T10:17:19  -
+
+### Access latest version of the secret
+➜  gcloud secrets versions access latest --secret=application-secret
+Hola
+
+### Access older version of the secret
+➜  gcloud secrets versions access 1 --secret=application-secret
+Hello
+
+
+### Access older version of the secret
+    // Application secrets can be accessed using @Value and using the "sm://" syntax.
+    @Value("${sm://application-secret}")
+    private String appSecret;
+    @Value("${sm://application-secret/1}")
+    private String appSecretOld;
+    @Value("${sm://source-api-password-2}")
+    private String sourceApiPassword2;
+
+    // Multiple ways of loading the application-secret are demonstrated in bootstrap.properties.
+    // Try it with my-app-secret-1 or my-app-secret-2
+    @Value("${my-app-secret-1}")
+    private String myAppSecret;
+
+    @Value("${my-app-secret-2}")
+    private String myAppSecretOld;
+
+<div class="panel">
+    <h3>Secret Manager Property Source</h3>
+    At the bootstrap phase, we loaded the following secret into the application context:
+    <br/>
+    <br/>
+    <b>application-secret:</b> <i>[[${applicationSecret}]]</i><br/>
+    <b>application-secret Old:</b> <i>[[${applicationSecretOld}]]</i><br/>
+    <b>sourceApiPassword2::</b> <i>[[${sourceApiPassword2}]]</i><br/>
+    <b>my-application-secret:</b> <i>[[${myApplicationSecret}]]</i>
+    <b>my-application-secret Old:</b> <i>[[${myApplicationSecretOld}]]</i>
+</div>
+
+### Test app from Browser
+http://localhost:8080/
+Secret Manager Property Source
+At the bootstrap phase, we loaded the following secret into the application context:
+
+application-secret: Hola
+application-secret Old: Hello
+sourceApiPassword2:: Binu123
+my-application-secret: Hola my-application-secret Old: Hello

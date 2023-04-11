@@ -1,0 +1,7 @@
+gcloud compute instances create-with-container docker-gcloud-alpine-1 \
+    --container-image gcr.io/google.com/cloudsdktool/cloud-sdk:alpine
+
+gcloud compute instances create-with-container from-docker-gcloud-alpine nginx-vm \
+    --container-image gcr.io/google.com/cloudsdktool/cloud-sdk@sha256:17820a282fceb48d193d02d08a698be9bb88316ecf587d11e9f364c889395547
+gcr.io/google.com/cloudsdktool/cloud-sdk@sha256:6af49ac6019b741a7a45e9bf3c2936ee66346d0d80b5399bfcefeefa66e956e0
+gcr.io/google.com/cloudsdktool/cloud-sdk@sha256:17820a282fceb48d193d02d08a698be9bb88316ecf587d11e9f364c889395547
